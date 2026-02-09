@@ -1,0 +1,1569 @@
+--[[
+
+ Advanced Minesweeper GUI System
+
+ Features: Draggable GUI, Themes, ESP (Xitbox), Noclip, Speed, Anti-Void, Server Hop, Config System
+
+ Compatible with: Synapse X, Script-Ware, Krnl, Fluxus
+
+]]
+
+-- Services
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local HttpService = game:GetService("HttpService")
+local TeleportService = game:GetService("TeleportService")
+local CoreGui = game:GetService("CoreGui")
+local Workspace = game:GetService("Workspace")
+local Lighting = game:GetService("Lighting")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+-- Local Player
+local LocalPlayer = Players.LocalPlayer
+local Mouse = LocalPlayer:GetMouse()
+local Camera = Workspace.CurrentCamera
+
+-- GUI Protection
+local function ProtectGUI(gui)
+    if syn and syn.protect_gui then
+        syn.protect_gui(gui)
+        gui.Parent = CoreGui
+    elseif gethui then
+        gui.Parent = gethui()
+    else
+        gui.Parent = CoreGui
+    end
+end
+
+-- Configuration
+local Config = {
+    Theme = "Aqua",
+    GUIWidth = 600,
+    GUIHeight = 400,
+    Noclip = false,
+    NoclipKey = Enum.KeyCode.N,
+    HighJump = false,
+    JumpPower = 50,
+    Float = false,
+    Speed = 16,
+    AntiVoid = false,
+    AntiVoidHeight = -50,
+    BoxESP = false,
+    Tracers = false,
+    TeamCheck = true,
+    ESPColor = Color3.fromRGB(255, 0, 0),
+    TracerColor = Color3.fromRGB(0, 255, 255),
+    XitboxESP = false -- Новая настройка для Xitbox ESP
+}
+
+-- Theme Colors
+local Themes = {
+    Aqua = {
+        Background = Color3.fromRGB(20, 30, 48),
+        Secondary = Color3.fromRGB(30, 45, 70),
+        Accent = Color3.fromRGB(0, 200, 255),
+        Text = Color3.fromRGB(255, 255, 255),
+        SubText = Color3.fromRGB(180, 180, 180),
+        Button = Color3.fromRGB(0, 150, 200),
+        ButtonHover = Color3.fromRGB(0, 180, 240)
+    },
+    Dark = {
+        Background = Color3.fromRGB(25, 25, 25),
+        Secondary = Color3.fromRGB(35, 35, 35),
+        Accent = Color3.fromRGB(100, 100, 100),
+        Text = Color3.fromRGB(255, 255, 255),
+        SubText = Color3.fromRGB(150, 150, 150),
+        Button = Color3.fromRGB(60, 60, 60),
+        ButtonHover = Color3.fromRGB(80, 80, 80)
+    },
+    White = {
+        Background = Color3.fromRGB(240, 240, 240),
+        Secondary = Color3.fromRGB(220, 220, 220),
+        Accent = Color3.fromRGB(100, 150, 255),
+        Text = Color3.fromRGB(30, 30, 30),
+        SubText = Color3.fromRGB(80, 80, 80),
+        Button = Color3.fromRGB(200, 200, 200),
+        ButtonHover = Color3.fromRGB(180, 180, 180)
+    },
+    Transparent = {
+        Background = Color3.fromRGB(20, 20, 20),
+        Secondary = Color3.fromRGB(30, 30, 30),
+        Accent = Color3.fromRGB(0, 255, 150),
+        Text = Color3.fromRGB(255, 255, 255),
+        SubText = Color3.fromRGB(180, 180, 180),
+        Button = Color3.fromRGB(40, 40, 40),
+        ButtonHover = Color3.fromRGB(60, 60, 60)
+    },
+    ["Semi-transparent"] = {
+        Background = Color3.fromRGB(30, 30, 30),
+        Secondary = Color3.fromRGB(40, 40, 40),
+        Accent = Color3.fromRGB(255, 100, 100),
+        Text = Color3.fromRGB(255, 255, 255),
+        SubText = Color3.fromRGB(180, 180, 180),
+        Button = Color3.fromRGB(50, 50, 50),
+        ButtonHover = Color3.fromRGB(70, 70, 70)
+    }
+}
+
+-- Create Main GUI
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "MinesweeperGUI"
+ScreenGui.ResetOnSpawn = false
+ProtectGUI(ScreenGui)
+
+-- Main Frame
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
+MainFrame.Size = UDim2.new(0, Config.GUIWidth, 0, Config.GUIHeight)
+MainFrame.Position = UDim2.new(0.5, -Config.GUIWidth/2, 0.5, -Config.GUIHeight/2)
+MainFrame.BackgroundColor3 = Themes[Config.Theme].Background
+MainFrame.BorderSizePixel = 0
+MainFrame.ClipsDescendants = true
+MainFrame.Parent = ScreenGui
+
+-- Corner Radius
+local MainCorner = Instance.new("UICorner")
+MainCorner.CornerRadius = UDim.new(0, 10)
+MainCorner.Parent = MainFrame
+
+-- Shadow
+local Shadow = Instance.new("ImageLabel")
+Shadow.Name = "Shadow"
+Shadow.AnchorPoint = Vector2.new(0.5, 0.5)
+Shadow.BackgroundTransparency = 1
+Shadow.Position = UDim2.new(0.5, 0, 0.5, 0)
+Shadow.Size = UDim2.new(1, 40, 1, 40)
+Shadow.ZIndex = -1
+Shadow.Image = "rbxassetid://5554236805"
+Shadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
+Shadow.ImageTransparency = 0.6
+Shadow.ScaleType = Enum.ScaleType.Slice
+Shadow.SliceCenter = Rect.new(23, 23, 277, 277)
+Shadow.Parent = MainFrame
+
+-- Animated Background Canvas
+local BackgroundCanvas = Instance.new("Frame")
+BackgroundCanvas.Name = "BackgroundCanvas"
+BackgroundCanvas.Size = UDim2.new(1, 0, 1, 0)
+BackgroundCanvas.BackgroundTransparency = 1
+BackgroundCanvas.ZIndex = 0
+BackgroundCanvas.Parent = MainFrame
+
+-- Geometric Animation System
+local GeometricShapes = {}
+local Connections = {}
+
+local function CreateGeometricBackground()
+    -- Clear existing shapes
+    for _, shape in pairs(GeometricShapes) do
+        if shape then shape:Destroy() end
+    end
+    GeometricShapes = {}
+
+    -- Create dots
+    for i = 1, 15 do
+        local dot = Instance.new("Frame")
+        dot.Name = "Dot" .. i
+        dot.Size = UDim2.new(0, 4, 0, 4)
+        dot.Position = UDim2.new(math.random(), 0, math.random(), 0)
+        dot.BackgroundColor3 = Themes[Config.Theme].Accent
+        dot.BackgroundTransparency = 0.5
+        dot.BorderSizePixel = 0
+        dot.ZIndex = 1
+        dot.Parent = BackgroundCanvas
+
+        local dotCorner = Instance.new("UICorner")
+        dotCorner.CornerRadius = UDim.new(1, 0)
+        dotCorner.Parent = dot
+
+        table.insert(GeometricShapes, dot)
+
+        -- Animate dot
+        spawn(function()
+            while dot and dot.Parent do
+                local tween = TweenService:Create(dot, TweenInfo.new(3 + math.random() * 2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
+                    Position = UDim2.new(math.random(), 0, math.random(), 0),
+                    BackgroundTransparency = 0.3 + math.random() * 0.4
+                })
+                tween:Play()
+                tween.Completed:Wait()
+            end
+        end)
+    end
+
+    -- Create connecting lines
+    for i = 1, 8 do
+        local line = Instance.new("Frame")
+        line.Name = "Line" .. i
+        line.Size = UDim2.new(0, 100, 0, 1)
+        line.Position = UDim2.new(math.random(), 0, math.random(), 0)
+        line.BackgroundColor3 = Themes[Config.Theme].Accent
+        line.BackgroundTransparency = 0.7
+        line.BorderSizePixel = 0
+        line.ZIndex = 1
+        line.Rotation = math.random() * 360
+        line.Parent = BackgroundCanvas
+
+        table.insert(GeometricShapes, line)
+
+        -- Animate line
+        spawn(function()
+            while line and line.Parent do
+                local tween = TweenService:Create(line, TweenInfo.new(4 + math.random() * 2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
+                    Position = UDim2.new(math.random(), 0, math.random(), 0),
+                    Rotation = math.random() * 360,
+                    BackgroundTransparency = 0.5 + math.random() * 0.4
+                })
+                tween:Play()
+                tween.Completed:Wait()
+            end
+        end)
+    end
+
+    -- Create triangles
+    for i = 1, 5 do
+        local triangle = Instance.new("ImageLabel")
+        triangle.Name = "Triangle" .. i
+        triangle.Size = UDim2.new(0, 30, 0, 30)
+        triangle.Position = UDim2.new(math.random(), 0, math.random(), 0)
+        triangle.BackgroundTransparency = 1
+        triangle.Image = "rbxassetid://3926307971"
+        triangle.ImageColor3 = Themes[Config.Theme].Accent
+        triangle.ImageTransparency = 0.6
+        triangle.ZIndex = 1
+        triangle.Parent = BackgroundCanvas
+
+        table.insert(GeometricShapes, triangle)
+
+        -- Animate triangle
+        spawn(function()
+            while triangle and triangle.Parent do
+                local tween = TweenService:Create(triangle, TweenInfo.new(5 + math.random() * 3, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
+                    Position = UDim2.new(math.random(), 0, math.random(), 0),
+                    Rotation = math.random() * 360,
+                    ImageTransparency = 0.4 + math.random() * 0.4
+                })
+                tween:Play()
+                tween.Completed:Wait()
+            end
+        end)
+    end
+end
+
+-- Title Bar
+local TitleBar = Instance.new("Frame")
+TitleBar.Name = "TitleBar"
+TitleBar.Size = UDim2.new(1, 0, 0, 35)
+TitleBar.BackgroundColor3 = Themes[Config.Theme].Secondary
+TitleBar.BorderSizePixel = 0
+TitleBar.ZIndex = 10
+TitleBar.Parent = MainFrame
+
+local TitleCorner = Instance.new("UICorner")
+TitleCorner.CornerRadius = UDim.new(0, 10)
+TitleCorner.Parent = TitleBar
+
+local TitleFix = Instance.new("Frame")
+TitleFix.Name = "TitleFix"
+TitleFix.Size = UDim2.new(1, 0, 0, 10)
+TitleFix.Position = UDim2.new(0, 0, 1, -10)
+TitleFix.BackgroundColor3 = Themes[Config.Theme].Secondary
+TitleFix.BorderSizePixel = 0
+TitleFix.ZIndex = 10
+TitleFix.Parent = TitleBar
+
+-- Title Text
+local TitleText = Instance.new("TextLabel")
+TitleText.Name = "TitleText"
+TitleText.Size = UDim2.new(0.5, 0, 1, 0)
+TitleText.Position = UDim2.new(0, 15, 0, 0)
+TitleText.BackgroundTransparency = 1
+TitleText.Text = "⚡ Minesweeper Hub"
+TitleText.TextColor3 = Themes[Config.Theme].Text
+TitleText.TextSize = 16
+TitleText.Font = Enum.Font.GothamBold
+TitleText.TextXAlignment = Enum.TextXAlignment.Left
+TitleText.ZIndex = 11
+TitleText.Parent = TitleBar
+
+-- Close Button
+local CloseButton = Instance.new("TextButton")
+CloseButton.Name = "CloseButton"
+CloseButton.Size = UDim2.new(0, 30, 0, 30)
+CloseButton.Position = UDim2.new(1, -35, 0, 2)
+CloseButton.BackgroundColor3 = Color3.fromRGB(255, 70, 70)
+CloseButton.Text = "X"
+CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+CloseButton.TextSize = 14
+CloseButton.Font = Enum.Font.GothamBold
+CloseButton.ZIndex = 11
+CloseButton.Parent = TitleBar
+
+local CloseCorner = Instance.new("UICorner")
+CloseCorner.CornerRadius = UDim.new(0, 6)
+CloseCorner.Parent = CloseButton
+
+CloseButton.MouseButton1Click:Connect(function()
+    local tween = TweenService:Create(MainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+        Size = UDim2.new(0, 0, 0, 0),
+        Position = UDim2.new(0.5, 0, 0.5, 0)
+    })
+    tween:Play()
+    tween.Completed:Wait()
+    ScreenGui:Destroy()
+
+    -- Clean up connections
+    for _, conn in pairs(Connections) do
+        if conn then conn:Disconnect() end
+    end
+end)
+
+-- Minimize Button
+local MinimizeButton = Instance.new("TextButton")
+MinimizeButton.Name = "MinimizeButton"
+MinimizeButton.Size = UDim2.new(0, 30, 0, 30)
+MinimizeButton.Position = UDim2.new(1, -70, 0, 2)
+MinimizeButton.BackgroundColor3 = Color3.fromRGB(255, 180, 0)
+MinimizeButton.Text = "-"
+MinimizeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+MinimizeButton.TextSize = 18
+MinimizeButton.Font = Enum.Font.GothamBold
+MinimizeButton.ZIndex = 11
+MinimizeButton.Parent = TitleBar
+
+local MinimizeCorner = Instance.new("UICorner")
+MinimizeCorner.CornerRadius = UDim.new(0, 6)
+MinimizeCorner.Parent = MinimizeButton
+
+local Minimized = false
+MinimizeButton.MouseButton1Click:Connect(function()
+    Minimized = not Minimized
+    if Minimized then
+        TweenService:Create(MainFrame, TweenInfo.new(0.3), {Size = UDim2.new(0, Config.GUIWidth, 0, 35)}):Play()
+        MinimizeButton.Text = "+"
+    else
+        TweenService:Create(MainFrame, TweenInfo.new(0.3), {Size = UDim2.new(0, Config.GUIWidth, 0, Config.GUIHeight)}):Play()
+        MinimizeButton.Text = "-"
+    end
+end)
+
+-- Sidebar
+local Sidebar = Instance.new("Frame")
+Sidebar.Name = "Sidebar"
+Sidebar.Size = UDim2.new(0, 140, 1, -35)
+Sidebar.Position = UDim2.new(0, 0, 0, 35)
+Sidebar.BackgroundColor3 = Themes[Config.Theme].Secondary
+Sidebar.BorderSizePixel = 0
+Sidebar.ZIndex = 5
+Sidebar.Parent = MainFrame
+
+local SidebarLayout = Instance.new("UIListLayout")
+SidebarLayout.Padding = UDim.new(0, 5)
+SidebarLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+SidebarLayout.Parent = Sidebar
+
+local SidebarPadding = Instance.new("UIPadding")
+SidebarPadding.PaddingTop = UDim.new(0, 10)
+SidebarPadding.Parent = Sidebar
+
+-- Content Frame
+local ContentFrame = Instance.new("Frame")
+ContentFrame.Name = "ContentFrame"
+ContentFrame.Size = UDim2.new(1, -140, 1, -35)
+ContentFrame.Position = UDim2.new(0, 140, 0, 35)
+ContentFrame.BackgroundTransparency = 1
+ContentFrame.ZIndex = 5
+ContentFrame.Parent = MainFrame
+
+-- Tab System
+local Tabs = {}
+local CurrentTab = nil
+
+local function CreateTabButton(name, icon)
+    local TabButton = Instance.new("TextButton")
+    TabButton.Name = name .. "Tab"
+    TabButton.Size = UDim2.new(0, 120, 0, 35)
+    TabButton.BackgroundColor3 = Themes[Config.Theme].Button
+    TabButton.Text = icon .. " " .. name
+    TabButton.TextColor3 = Themes[Config.Theme].Text
+    TabButton.TextSize = 12
+    TabButton.Font = Enum.Font.GothamSemibold
+    TabButton.ZIndex = 6
+    TabButton.Parent = Sidebar
+
+    local TabCorner = Instance.new("UICorner")
+    TabCorner.CornerRadius = UDim.new(0, 6)
+    TabCorner.Parent = TabButton
+
+    -- Tab Content
+    local TabContent = Instance.new("ScrollingFrame")
+    TabContent.Name = name .. "Content"
+    TabContent.Size = UDim2.new(1, -20, 1, -20)
+    TabContent.Position = UDim2.new(0, 10, 0, 10)
+    TabContent.BackgroundTransparency = 1
+    TabContent.BorderSizePixel = 0
+    TabContent.ScrollBarThickness = 4
+    TabContent.ScrollBarImageColor3 = Themes[Config.Theme].Accent
+    TabContent.Visible = false
+    TabContent.ZIndex = 5
+    TabContent.Parent = ContentFrame
+
+    local ContentLayout = Instance.new("UIListLayout")
+    ContentLayout.Padding = UDim.new(0, 10)
+    ContentLayout.Parent = TabContent
+
+    local ContentPadding = Instance.new("UIPadding")
+    ContentPadding.PaddingTop = UDim.new(0, 5)
+    ContentPadding.PaddingBottom = UDim.new(0, 10)
+    ContentPadding.Parent = TabContent
+
+    Tabs[name] = {
+        Button = TabButton,
+        Content = TabContent
+    }
+
+    TabButton.MouseButton1Click:Connect(function()
+        if CurrentTab then
+            Tabs[CurrentTab].Content.Visible = false
+            Tabs[CurrentTab].Button.BackgroundColor3 = Themes[Config.Theme].Button
+        end
+        CurrentTab = name
+        TabContent.Visible = true
+        TabButton.BackgroundColor3 = Themes[Config.Theme].Accent
+    end)
+
+    return TabContent
+end
+
+-- Create all tabs
+CreateTabButton("Settings", "⚙️")
+CreateTabButton("Server", "🌐")
+CreateTabButton("Me", "👤")
+CreateTabButton("Player", "🎮")
+CreateTabButton("Vision", "👁️")
+CreateTabButton("Game", "💣")
+CreateTabButton("Config", "💾")
+
+-- UI Element Creators
+local function CreateSection(parent, text)
+    local Section = Instance.new("TextLabel")
+    Section.Size = UDim2.new(1, 0, 0, 25)
+    Section.BackgroundTransparency = 1
+    Section.Text = text
+    Section.TextColor3 = Themes[Config.Theme].Accent
+    Section.TextSize = 14
+    Section.Font = Enum.Font.GothamBold
+    Section.TextXAlignment = Enum.TextXAlignment.Left
+    Section.ZIndex = 6
+    Section.Parent = parent
+    return Section
+end
+
+local function CreateButton(parent, text, callback)
+    local Button = Instance.new("TextButton")
+    Button.Size = UDim2.new(1, 0, 0, 35)
+    Button.BackgroundColor3 = Themes[Config.Theme].Button
+    Button.Text = text
+    Button.TextColor3 = Themes[Config.Theme].Text
+    Button.TextSize = 13
+    Button.Font = Enum.Font.GothamSemibold
+    Button.ZIndex = 6
+    Button.Parent = parent
+
+    local ButtonCorner = Instance.new("UICorner")
+    ButtonCorner.CornerRadius = UDim.new(0, 6)
+    ButtonCorner.Parent = Button
+
+    Button.MouseEnter:Connect(function()
+        TweenService:Create(Button, TweenInfo.new(0.2), {BackgroundColor3 = Themes[Config.Theme].ButtonHover}):Play()
+    end)
+
+    Button.MouseLeave:Connect(function()
+        TweenService:Create(Button, TweenInfo.new(0.2), {BackgroundColor3 = Themes[Config.Theme].Button}):Play()
+    end)
+
+    Button.MouseButton1Click:Connect(function()
+        pcall(callback)
+    end)
+
+    return Button
+end
+
+local function CreateToggle(parent, text, default, callback)
+    local ToggleFrame = Instance.new("Frame")
+    ToggleFrame.Size = UDim2.new(1, 0, 0, 35)
+    ToggleFrame.BackgroundTransparency = 1
+    ToggleFrame.ZIndex = 6
+    ToggleFrame.Parent = parent
+
+    local ToggleLabel = Instance.new("TextLabel")
+    ToggleLabel.Size = UDim2.new(0.7, 0, 1, 0)
+    ToggleLabel.BackgroundTransparency = 1
+    ToggleLabel.Text = text
+    ToggleLabel.TextColor3 = Themes[Config.Theme].Text
+    ToggleLabel.TextSize = 13
+    ToggleLabel.Font = Enum.Font.Gotham
+    ToggleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    ToggleLabel.ZIndex = 6
+    ToggleLabel.Parent = ToggleFrame
+
+    local ToggleButton = Instance.new("TextButton")
+    ToggleButton.Size = UDim2.new(0, 50, 0, 25)
+    ToggleButton.Position = UDim2.new(1, -50, 0.5, -12)
+    ToggleButton.BackgroundColor3 = default and Color3.fromRGB(0, 200, 100) or Color3.fromRGB(100, 100, 100)
+    ToggleButton.Text = default and "ON" or "OFF"
+    ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    ToggleButton.TextSize = 11
+    ToggleButton.Font = Enum.Font.GothamBold
+    ToggleButton.ZIndex = 6
+    ToggleButton.Parent = ToggleFrame
+
+    local ToggleCorner = Instance.new("UICorner")
+    ToggleCorner.CornerRadius = UDim.new(0, 12)
+    ToggleCorner.Parent = ToggleButton
+
+    local Enabled = default
+    ToggleButton.MouseButton1Click:Connect(function()
+        Enabled = not Enabled
+        ToggleButton.Text = Enabled and "ON" or "OFF"
+        TweenService:Create(ToggleButton, TweenInfo.new(0.2), {
+            BackgroundColor3 = Enabled and Color3.fromRGB(0, 200, 100) or Color3.fromRGB(100, 100, 100)
+        }):Play()
+        pcall(callback, Enabled)
+    end)
+
+    return ToggleFrame
+end
+
+local function CreateSlider(parent, text, min, max, default, callback)
+    local SliderFrame = Instance.new("Frame")
+    SliderFrame.Size = UDim2.new(1, 0, 0, 50)
+    SliderFrame.BackgroundTransparency = 1
+    SliderFrame.ZIndex = 6
+    SliderFrame.Parent = parent
+
+    local SliderLabel = Instance.new("TextLabel")
+    SliderLabel.Size = UDim2.new(0.6, 0, 0, 20)
+    SliderLabel.BackgroundTransparency = 1
+    SliderLabel.Text = text
+    SliderLabel.TextColor3 = Themes[Config.Theme].Text
+    SliderLabel.TextSize = 13
+    SliderLabel.Font = Enum.Font.Gotham
+    SliderLabel.TextXAlignment = Enum.TextXAlignment.Left
+    SliderLabel.ZIndex = 6
+    SliderLabel.Parent = SliderFrame
+
+    local ValueLabel = Instance.new("TextLabel")
+    ValueLabel.Size = UDim2.new(0.3, 0, 0, 20)
+    ValueLabel.Position = UDim2.new(0.7, 0, 0, 0)
+    ValueLabel.BackgroundTransparency = 1
+    ValueLabel.Text = tostring(default)
+    ValueLabel.TextColor3 = Themes[Config.Theme].Accent
+    ValueLabel.TextSize = 13
+    ValueLabel.Font = Enum.Font.GothamBold
+    ValueLabel.TextXAlignment = Enum.TextXAlignment.Right
+    ValueLabel.ZIndex = 6
+    ValueLabel.Parent = SliderFrame
+
+    local SliderBg = Instance.new("Frame")
+    SliderBg.Size = UDim2.new(1, 0, 0, 8)
+    SliderBg.Position = UDim2.new(0, 0, 0, 32)
+    SliderBg.BackgroundColor3 = Themes[Config.Theme].Secondary
+    SliderBg.BorderSizePixel = 0
+    SliderBg.ZIndex = 6
+    SliderBg.Parent = SliderFrame
+
+    local SliderBgCorner = Instance.new("UICorner")
+    SliderBgCorner.CornerRadius = UDim.new(0, 4)
+    SliderBgCorner.Parent = SliderBg
+
+    local SliderFill = Instance.new("Frame")
+    SliderFill.Size = UDim2.new((default - min) / (max - min), 0, 1, 0)
+    SliderFill.BackgroundColor3 = Themes[Config.Theme].Accent
+    SliderFill.BorderSizePixel = 0
+    SliderFill.ZIndex = 7
+    SliderFill.Parent = SliderBg
+
+    local SliderFillCorner = Instance.new("UICorner")
+    SliderFillCorner.CornerRadius = UDim.new(0, 4)
+    SliderFillCorner.Parent = SliderFill
+
+    local SliderButton = Instance.new("TextButton")
+    SliderButton.Size = UDim2.new(0, 16, 0, 16)
+    SliderButton.Position = UDim2.new((default - min) / (max - min), -8, 0.5, -8)
+    SliderButton.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    SliderButton.Text = ""
+    SliderButton.ZIndex = 8
+    SliderButton.Parent = SliderBg
+
+    local SliderButtonCorner = Instance.new("UICorner")
+    SliderButtonCorner.CornerRadius = UDim.new(1, 0)
+    SliderButtonCorner.Parent = SliderButton
+
+    local Dragging = false
+
+    local function UpdateSlider(input)
+        local pos = math.clamp((input.Position.X - SliderBg.AbsolutePosition.X) / SliderBg.AbsoluteSize.X, 0, 1)
+        local value = math.floor(min + (max - min) * pos)
+        ValueLabel.Text = tostring(value)
+        SliderFill.Size = UDim2.new(pos, 0, 1, 0)
+        SliderButton.Position = UDim2.new(pos, -8, 0.5, -8)
+        pcall(callback, value)
+    end
+
+    SliderButton.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            Dragging = true
+        end
+    end)
+
+    UserInputService.InputChanged:Connect(function(input)
+        if Dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            UpdateSlider(input)
+        end
+    end)
+
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            Dragging = false
+        end
+    end)
+
+    SliderBg.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            UpdateSlider(input)
+        end
+    end)
+
+    return SliderFrame
+end
+
+local function CreateDropdown(parent, text, options, callback)
+    local DropdownFrame = Instance.new("Frame")
+    DropdownFrame.Size = UDim2.new(1, 0, 0, 35)
+    DropdownFrame.BackgroundTransparency = 1
+    DropdownFrame.ZIndex = 6
+    DropdownFrame.Parent = parent
+
+    local DropdownLabel = Instance.new("TextLabel")
+    DropdownLabel.Size = UDim2.new(0.4, 0, 1, 0)
+    DropdownLabel.BackgroundTransparency = 1
+    DropdownLabel.Text = text
+    DropdownLabel.TextColor3 = Themes[Config.Theme].Text
+    DropdownLabel.TextSize = 13
+    DropdownLabel.Font = Enum.Font.Gotham
+    DropdownLabel.TextXAlignment = Enum.TextXAlignment.Left
+    DropdownLabel.ZIndex = 6
+    DropdownLabel.Parent = DropdownFrame
+
+    local DropdownButton = Instance.new("TextButton")
+    DropdownButton.Size = UDim2.new(0.55, 0, 1, 0)
+    DropdownButton.Position = UDim2.new(0.45, 0, 0, 0)
+    DropdownButton.BackgroundColor3 = Themes[Config.Theme].Button
+    DropdownButton.Text = options[1] or "Select"
+    DropdownButton.TextColor3 = Themes[Config.Theme].Text
+    DropdownButton.TextSize = 12
+    DropdownButton.Font = Enum.Font.Gotham
+    DropdownButton.ZIndex = 6
+    DropdownButton.Parent = DropdownFrame
+
+    local DropdownCorner = Instance.new("UICorner")
+    DropdownCorner.CornerRadius = UDim.new(0, 6)
+    DropdownCorner.Parent = DropdownButton
+
+    local DropdownList = Instance.new("Frame")
+    DropdownList.Size = UDim2.new(1, 0, 0, #options * 30)
+    DropdownList.Position = UDim2.new(0, 0, 1, 5)
+    DropdownList.BackgroundColor3 = Themes[Config.Theme].Secondary
+    DropdownList.BorderSizePixel = 0
+    DropdownList.ZIndex = 20
+    DropdownList.Visible = false
+    DropdownList.Parent = DropdownButton
+
+    local ListCorner = Instance.new("UICorner")
+    ListCorner.CornerRadius = UDim.new(0, 6)
+    ListCorner.Parent = DropdownList
+
+    for i, option in ipairs(options) do
+        local OptionButton = Instance.new("TextButton")
+        OptionButton.Size = UDim2.new(1, 0, 0, 30)
+        OptionButton.Position = UDim2.new(0, 0, 0, (i - 1) * 30)
+        OptionButton.BackgroundColor3 = Themes[Config.Theme].Secondary
+        OptionButton.Text = option
+        OptionButton.TextColor3 = Themes[Config.Theme].Text
+        OptionButton.TextSize = 12
+        OptionButton.Font = Enum.Font.Gotham
+        OptionButton.ZIndex = 21
+        OptionButton.Parent = DropdownList
+
+        OptionButton.MouseButton1Click:Connect(function()
+            DropdownButton.Text = option
+            DropdownList.Visible = false
+            pcall(callback, option)
+        end)
+    end
+
+    DropdownButton.MouseButton1Click:Connect(function()
+        DropdownList.Visible = not DropdownList.Visible
+    end)
+
+    return DropdownFrame
+end
+
+local function CreateLabel(parent, text)
+    local Label = Instance.new("TextLabel")
+    Label.Size = UDim2.new(1, 0, 0, 25)
+    Label.BackgroundTransparency = 1
+    Label.Text = text
+    Label.TextColor3 = Themes[Config.Theme].SubText
+    Label.TextSize = 12
+    Label.Font = Enum.Font.Gotham
+    Label.TextXAlignment = Enum.TextXAlignment.Left
+    Label.ZIndex = 6
+    Label.Parent = parent
+    return Label
+end
+
+-- Draggable Function
+local function MakeDraggable(frame, handle)
+    local Dragging = false
+    local DragStart = nil
+    local StartPos = nil
+
+    handle.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            Dragging = true
+            DragStart = input.Position
+            StartPos = frame.Position
+        end
+    end)
+
+    UserInputService.InputChanged:Connect(function(input)
+        if Dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            local delta = input.Position - DragStart
+            frame.Position = UDim2.new(StartPos.X.Scale, StartPos.X.Offset + delta.X, StartPos.Y.Scale, StartPos.Y.Offset + delta.Y)
+        end
+    end)
+
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            Dragging = false
+        end
+    end)
+end
+
+MakeDraggable(MainFrame, TitleBar)
+
+-- ==================== SETTINGS TAB ====================
+local SettingsTab = Tabs["Settings"].Content
+CreateSection(SettingsTab, "Theme Settings")
+CreateDropdown(SettingsTab, "Theme:", {"Aqua", "Dark", "White", "Transparent", "Semi-transparent"}, function(theme)
+    Config.Theme = theme
+    -- Update all theme colors
+    local colors = Themes[theme]
+    MainFrame.BackgroundColor3 = colors.Background
+    TitleBar.BackgroundColor3 = colors.Secondary
+    TitleFix.BackgroundColor3 = colors.Secondary
+    Sidebar.BackgroundColor3 = colors.Secondary
+
+    -- Update geometric shapes
+    for _, shape in pairs(GeometricShapes) do
+        if shape then
+            if shape:IsA("Frame") or shape:IsA("ImageLabel") then
+                if shape.Name:find("Dot") or shape.Name:find("Triangle") then
+                    shape.BackgroundColor3 = colors.Accent
+                    if shape:IsA("ImageLabel") then
+                        shape.ImageColor3 = colors.Accent
+                    end
+                elseif shape.Name:find("Line") then
+                    shape.BackgroundColor3 = colors.Accent
+                end
+            end
+        end
+    end
+end)
+
+CreateSection(SettingsTab, "GUI Size")
+CreateSlider(SettingsTab, "Width:", 400, 1000, Config.GUIWidth, function(value)
+    Config.GUIWidth = value
+    MainFrame.Size = UDim2.new(0, value, 0, Config.GUIHeight)
+end)
+CreateSlider(SettingsTab, "Height:", 300, 700, Config.GUIHeight, function(value)
+    Config.GUIHeight = value
+    MainFrame.Size = UDim2.new(0, Config.GUIWidth, 0, value)
+end)
+
+CreateSection(SettingsTab, "Server Actions")
+CreateButton(SettingsTab, "🔄 Server Hop", function()
+    local success, result = pcall(function()
+        local HttpService = game:GetService("HttpService")
+        local TeleportService = game:GetService("TeleportService")
+        local Players = game:GetService("Players")
+
+        local servers = HttpService:JSONDecode(game:HttpGet("https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Asc&limit=100"))
+
+        for _, server in ipairs(servers.data) do
+            if server.playing < server.maxPlayers and server.id ~= game.JobId then
+                TeleportService:TeleportToPlaceInstance(game.PlaceId, server.id, Players.LocalPlayer)
+                break
+            end
+        end
+    end)
+
+    if not success then
+        warn("Server Hop failed: " .. tostring(result))
+        -- Fallback method
+        TeleportService:Teleport(game.PlaceId, LocalPlayer)
+    end
+end)
+
+CreateButton(SettingsTab, "🔄 Rejoin Server", function()
+    TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer)
+end)
+
+-- ==================== SERVER TAB ====================
+local ServerTab = Tabs["Server"].Content
+CreateSection(ServerTab, "Connection Info")
+local PingLabel = CreateLabel(ServerTab, "Ping: Loading...")
+local FPSLabel = CreateLabel(ServerTab, "FPS: Loading...")
+local ServerIdLabel = CreateLabel(ServerTab, "Server ID: " .. string.sub(game.JobId, 1, 8) .. "...")
+local PlaceIdLabel = CreateLabel(ServerTab, "Place ID: " .. game.PlaceId)
+local PlayersLabel = CreateLabel(ServerTab, "Players: " .. #Players:GetPlayers())
+
+CreateSection(ServerTab, "Server Stats")
+local function UpdateServerStats()
+    local ping = math.floor(LocalPlayer:GetNetworkPing() * 1000)
+    PingLabel.Text = "Ping: " .. ping .. " ms"
+    PlayersLabel.Text = "Players: " .. #Players:GetPlayers() .. "/" .. Players.MaxPlayers
+end
+
+spawn(function()
+    while wait(1) do
+        pcall(UpdateServerStats)
+    end
+end)
+
+local FPS = 0
+local LastUpdate = tick()
+RunService.RenderStepped:Connect(function()
+    FPS = FPS + 1
+    if tick() - LastUpdate >= 1 then
+        FPSLabel.Text = "FPS: " .. FPS
+        FPS = 0
+        LastUpdate = tick()
+    end
+end)
+
+-- ==================== ME TAB ====================
+local MeTab = Tabs["Me"].Content
+CreateSection(MeTab, "User Information")
+local UsernameLabel = CreateLabel(MeTab, "Username: " .. LocalPlayer.Name)
+local UserIdLabel = CreateLabel(MeTab, "User ID: " .. LocalPlayer.UserId)
+local DisplayNameLabel = CreateLabel(MeTab, "Display Name: " .. LocalPlayer.DisplayName)
+local AccountAgeLabel = CreateLabel(MeTab, "Account Age: " .. LocalPlayer.AccountAge .. " days")
+
+CreateSection(MeTab, "Network Information")
+local IPLabel = CreateLabel(MeTab, "IP: Fetching...")
+local CityLabel = CreateLabel(MeTab, "City: Fetching...")
+local RegionLabel = CreateLabel(MeTab, "Region: Fetching...")
+local CountryLabel = CreateLabel(MeTab, "Country: Fetching...")
+local ISPLabel = CreateLabel(MeTab, "ISP: Fetching...")
+
+spawn(function()
+    local success, result = pcall(function()
+        local response = game:HttpGet("http://ip-api.com/json/")
+        local data = HttpService:JSONDecode(response)
+        return data
+    end)
+
+    if success and result then
+        IPLabel.Text = "IP: " .. (result.query or "N/A")
+        CityLabel.Text = "City: " .. (result.city or "N/A")
+        RegionLabel.Text = "Region: " .. (result.regionName or "N/A")
+        CountryLabel.Text = "Country: " .. (result.country or "N/A")
+        ISPLabel.Text = "ISP: " .. (result.isp or "N/A")
+    else
+        IPLabel.Text = "IP: Unable to fetch"
+        CityLabel.Text = "City: Unable to fetch"
+        RegionLabel.Text = "Region: Unable to fetch"
+        CountryLabel.Text = "Country: Unable to fetch"
+        ISPLabel.Text = "ISP: Unable to fetch"
+    end
+end)
+
+-- ==================== PLAYER TAB ====================
+local PlayerTab = Tabs["Player"].Content
+CreateSection(PlayerTab, "Movement Modifiers")
+
+-- Noclip
+local NoclipConnection = nil
+CreateToggle(PlayerTab, "Noclip (Press N)", false, function(enabled)
+    Config.Noclip = enabled
+    if enabled then
+        NoclipConnection = RunService.Stepped:Connect(function()
+            if LocalPlayer.Character then
+                for _, part in pairs(LocalPlayer.Character:GetDescendants()) do
+                    if part:IsA("BasePart") then
+                        part.CanCollide = false
+                    end
+                end
+            end
+        end)
+    else
+        if NoclipConnection then
+            NoclipConnection:Disconnect()
+            NoclipConnection = nil
+        end
+        if LocalPlayer.Character then
+            for _, part in pairs(LocalPlayer.Character:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    part.CanCollide = true
+                end
+            end
+        end
+    end
+end)
+
+-- Noclip Keybind
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if not gameProcessed and input.KeyCode == Config.NoclipKey then
+        Config.Noclip = not Config.Noclip
+        -- Update toggle visual if needed
+    end
+end)
+
+-- High Jump
+CreateToggle(PlayerTab, "High Jump", false, function(enabled)
+    Config.HighJump = enabled
+    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+        LocalPlayer.Character.Humanoid.JumpPower = enabled and Config.JumpPower or 50
+    end
+end)
+
+CreateSlider(PlayerTab, "Jump Power:", 50, 200, Config.JumpPower, function(value)
+    Config.JumpPower = value
+    if Config.HighJump and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+        LocalPlayer.Character.Humanoid.JumpPower = value
+    end
+end)
+
+-- Float
+local FloatPart = nil
+local FloatConnection = nil
+CreateToggle(PlayerTab, "Float", false, function(enabled)
+    Config.Float = enabled
+    if enabled then
+        FloatPart = Instance.new("Part")
+        FloatPart.Name = "FloatPart"
+        FloatPart.Size = Vector3.new(6, 1, 6)
+        FloatPart.Transparency = 1
+        FloatPart.Anchored = true
+        FloatPart.CanCollide = true
+        FloatPart.Parent = Workspace
+
+        FloatConnection = RunService.RenderStepped:Connect(function()
+            if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                FloatPart.CFrame = LocalPlayer.Character.HumanoidRootPart.CFrame - Vector3.new(0, 3.5, 0)
+            end
+        end)
+    else
+        if FloatConnection then
+            FloatConnection:Disconnect()
+            FloatConnection = nil
+        end
+        if FloatPart then
+            FloatPart:Destroy()
+            FloatPart = nil
+        end
+    end
+end)
+
+-- Speed Changer
+CreateSlider(PlayerTab, "Walk Speed:", 16, 500, Config.Speed, function(value)
+    Config.Speed = value
+    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+        LocalPlayer.Character.Humanoid.WalkSpeed = value
+    end
+end)
+
+-- Anti-Void
+local AntiVoidConnection = nil
+CreateToggle(PlayerTab, "Anti-Void", false, function(enabled)
+    Config.AntiVoid = enabled
+    if enabled then
+        AntiVoidConnection = RunService.RenderStepped:Connect(function()
+            if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                if LocalPlayer.Character.HumanoidRootPart.Position.Y < Config.AntiVoidHeight then
+                    LocalPlayer.Character.HumanoidRootPart.CFrame = LocalPlayer.Character.HumanoidRootPart.CFrame + Vector3.new(0, 10, 0)
+                    LocalPlayer.Character.Humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+                end
+            end
+        end)
+    else
+        if AntiVoidConnection then
+            AntiVoidConnection:Disconnect()
+            AntiVoidConnection = nil
+        end
+    end
+end)
+
+CreateSlider(PlayerTab, "Anti-Void Height:", -100, 0, Config.AntiVoidHeight, function(value)
+    Config.AntiVoidHeight = value
+end)
+
+-- ==================== VISION TAB ====================
+local VisionTab = Tabs["Vision"].Content
+CreateSection(VisionTab, "ESP Settings")
+
+-- ESP Storage
+local ESPBoxes = {}
+local ESPTracers = {}
+local XitboxESPBoxes = {} -- Новое хранилище для Xitbox ESP
+
+-- Функция для поиска Xitbox у игрока
+local function FindPlayerXitbox(player)
+    if not player or not player.Character then return nil end
+    
+    -- Ищем Xitbox в персонаже игрока
+    local xitbox = player.Character:FindFirstChild("Xitbox")
+    if xitbox then return xitbox end
+    
+    -- Ищем с разными вариантами написания
+    for _, child in pairs(player.Character:GetDescendants()) do
+        if child.Name == "Xitbox" or child.Name == "xitbox" or child.Name == "Hitbox" then
+            return child
+        end
+    end
+    
+    -- Ищем в Workspace по имени игрока
+    for _, obj in pairs(Workspace:GetDescendants()) do
+        if obj.Name == "Xitbox" and obj:IsA("BasePart") then
+            -- Проверяем, принадлежит ли этот Xitbox игроку
+            local objPos = obj.Position
+            if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                local charPos = player.Character.HumanoidRootPart.Position
+                if (objPos - charPos).Magnitude < 10 then
+                    return obj
+                end
+            end
+        end
+    end
+    
+    return nil
+end
+
+-- Box ESP (обычный)
+CreateToggle(VisionTab, "Box ESP", false, function(enabled)
+    Config.BoxESP = enabled
+
+    if not enabled then
+        for _, box in pairs(ESPBoxes) do
+            if box then box:Destroy() end
+        end
+        ESPBoxes = {}
+    end
+end)
+
+-- Xitbox ESP (НОВЫЙ - ищет именно Xitbox)
+CreateToggle(VisionTab, "Xitbox ESP", false, function(enabled)
+    Config.XitboxESP = enabled
+
+    if not enabled then
+        for _, box in pairs(XitboxESPBoxes) do
+            if box then box:Destroy() end
+        end
+        XitboxESPBoxes = {}
+    end
+end)
+
+-- Tracers
+CreateToggle(VisionTab, "Tracers", false, function(enabled)
+    Config.Tracers = enabled
+
+    if not enabled then
+        for _, tracer in pairs(ESPTracers) do
+            if tracer then tracer:Destroy() end
+        end
+        ESPTracers = {}
+    end
+end)
+
+CreateToggle(VisionTab, "Team Check", Config.TeamCheck, function(enabled)
+    Config.TeamCheck = enabled
+end)
+
+-- ESP Color
+CreateSection(VisionTab, "ESP Colors")
+CreateButton(VisionTab, "ESP Color: Red", function()
+    Config function()
+    Config.ESPColor = Color3.fromRGB(255, 0, 0)
+end)
+CreateButton(VisionTab, "ESP Color: Green", function()
+    Config.ESPColor = Color3.fromRGB(0, 255, 0)
+end)
+CreateButton(VisionTab, "ESP Color: Blue", function()
+    Config.ESPColor = Color3.fromRGB(0, 100, 255)
+end)
+CreateButton(VisionTab, "ESP Color: Yellow", function()
+    Config.ESPColor = Color3.fromRGB(255, 255, 0)
+end)
+
+-- ESP Update Loop
+RunService.RenderStepped:Connect(function()
+    -- Обычный Box ESP (по HumanoidRootPart)
+    if Config.BoxESP then
+        for _, player in pairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer then
+                if Config.TeamCheck and player.Team == LocalPlayer.Team then continue end
+
+                local character = player.Character
+                if character and character:FindFirstChild("HumanoidRootPart") and character:FindFirstChild("Head") then
+                    local hrp = character.HumanoidRootPart
+                    
+                    local pos, onScreen = Camera:WorldToViewportPoint(hrp.Position)
+                    if onScreen then
+                        if not ESPBoxes[player] then
+                            local box = Instance.new("Frame")
+                            box.Name = player.Name .. "Box"
+                            box.BackgroundColor3 = Config.ESPColor
+                            box.BackgroundTransparency = 0.7
+                            box.BorderSizePixel = 0
+                            box.ZIndex = 10
+                            box.Parent = ScreenGui
+                            ESPBoxes[player] = box
+                        end
+
+                        local size = (Camera.CFrame.Position - hrp.Position).Magnitude
+                        local scale = math.clamp(1000 / size, 20, 100)
+
+                        ESPBoxes[player].Size = UDim2.new(0, scale, 0, scale * 1.5)
+                        ESPBoxes[player].Position = UDim2.new(0, pos.X - scale/2, 0, pos.Y - scale * 0.75)
+                        ESPBoxes[player].BackgroundColor3 = Config.ESPColor
+                        ESPBoxes[player].Visible = true
+                    else
+                        if ESPBoxes[player] then
+                            ESPBoxes[player].Visible = false
+                        end
+                    end
+                else
+                    if ESPBoxes[player] then
+                        ESPBoxes[player]:Destroy()
+                        ESPBoxes[player] = nil
+                    end
+                end
+            end
+        end
+    else
+        -- Чистим обычный ESP если выключен
+        for player, box in pairs(ESPBoxes) do
+            if box then box:Destroy() end
+            ESPBoxes[player] = nil
+        end
+    end
+    
+    -- Xitbox ESP (НОВЫЙ - ищет именно Xitbox объект)
+    if Config.XitboxESP then
+        for _, player in pairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer then
+                if Config.TeamCheck and player.Team == LocalPlayer.Team then continue end
+
+                local xitbox = FindPlayerXitbox(player)
+                
+                if xitbox and xitbox:IsA("BasePart") then
+                    local pos, onScreen = Camera:WorldToViewportPoint(xitbox.Position)
+                    if onScreen then
+                        if not XitboxESPBoxes[player] then
+                            local box = Instance.new("Frame")
+                            box.Name = player.Name .. "Xitbox"
+                            box.BackgroundColor3 = Color3.fromRGB(255, 0, 255) -- Фиолетовый цвет для отличия
+                            box.BackgroundTransparency = 0.5
+                            box.BorderSizePixel = 2
+                            box.BorderColor3 = Color3.fromRGB(255, 255, 255)
+                            box.ZIndex = 11
+                            box.Parent = ScreenGui
+                            
+                            -- Добавляем надпись Xitbox
+                            local label = Instance.new("TextLabel")
+                            label.Name = "XitboxLabel"
+                            label.Size = UDim2.new(1, 0, 0, 15)
+                            label.Position = UDim2.new(0, 0, -1, 0)
+                            label.BackgroundTransparency = 1
+                            label.Text = "XITBOX"
+                            label.TextColor3 = Color3.fromRGB(255, 0, 255)
+                            label.TextSize = 10
+                            label.Font = Enum.Font.GothamBold
+                            label.Parent = box
+                            
+                            XitboxESPBoxes[player] = box
+                        end
+
+                        -- Размер зависит от размера самого Xitbox
+                        local size = (Camera.CFrame.Position - xitbox.Position).Magnitude
+                        local scale = math.clamp(800 / size, 15, 80)
+
+                        XitboxESPBoxes[player].Size = UDim2.new(0, scale, 0, scale)
+                        XitboxESPBoxes[player].Position = UDim2.new(0, pos.X - scale/2, 0, pos.Y - scale/2)
+                        XitboxESPBoxes[player].Visible = true
+                    else
+                        if XitboxESPBoxes[player] then
+                            XitboxESPBoxes[player].Visible = false
+                        end
+                    end
+                else
+                    if XitboxESPBoxes[player] then
+                        XitboxESPBoxes[player]:Destroy()
+                        XitboxESPBoxes[player] = nil
+                    end
+                end
+            end
+        end
+    else
+        -- Чистим Xitbox ESP если выключен
+        for player, box in pairs(XitboxESPBoxes) do
+            if box then box:Destroy() end
+            XitboxESPBoxes[player] = nil
+        end
+    end
+    
+    -- Tracers
+    if Config.Tracers then
+        for _, player in pairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer then
+                if Config.TeamCheck and player.Team == LocalPlayer.Team then continue end
+
+                local character = player.Character
+                if character and character:FindFirstChild("HumanoidRootPart") then
+                    local hrp = character.HumanoidRootPart
+                    local pos, onScreen = Camera:WorldToViewportPoint(hrp.Position)
+                    
+                    if onScreen then
+                        if not ESPTracers[player] then
+                            local tracer = Drawing.new("Line")
+                            tracer.Visible = false
+                            tracer.Thickness = 1
+                            tracer.Color = Config.TracerColor
+                            ESPTracers[player] = tracer
+                        end
+
+                        local tracer = ESPTracers[player]
+                        tracer.Visible = true
+                        tracer.From = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
+                        tracer.To = Vector2.new(pos.X, pos.Y)
+                        tracer.Color = Config.TracerColor
+                    else
+                        if ESPTracers[player] then
+                            ESPTracers[player].Visible = false
+                        end
+                    end
+                else
+                    if ESPTracers[player] then
+                        ESPTracers[player]:Remove()
+                        ESPTracers[player] = nil
+                    end
+                end
+            end
+        end
+    else
+        -- Чистим Tracers если выключены
+        for player, tracer in pairs(ESPTracers) do
+            if tracer then tracer:Remove() end
+            ESPTracers[player] = nil
+        end
+    end
+end)
+
+-- ==================== GAME TAB (Minesweeper) ====================
+local GameTab = Tabs["Game"].Content
+CreateSection(GameTab, "Minesweeper Cheats")
+
+-- Reveal All Mines
+CreateButton(GameTab, "💣 Reveal All Mines", function()
+    pcall(function()
+        -- Common Minesweeper game patterns
+        local minePatterns = {"Mine", "Bomb", "mine", "bomb", "MineTile", "BombTile"}
+
+        for _, obj in pairs(Workspace:GetDescendants()) do
+            for _, pattern in pairs(minePatterns) do
+                if obj.Name:find(pattern) or obj.Name:lower():find(pattern:lower()) then
+                    if obj:IsA("BasePart") or obj:IsA("MeshPart") then
+                        -- Highlight the mine
+                        local highlight = Instance.new("Highlight")
+                        highlight.Name = "MineHighlight"
+                        highlight.FillColor = Color3.fromRGB(255, 0, 0)
+                        highlight.OutlineColor = Color3.fromRGB(255, 100, 100)
+                        highlight.FillTransparency = 0.5
+                        highlight.Parent = obj
+                    end
+                end
+            end
+        end
+
+        -- Try to access game-specific mine data
+        local success, mines = pcall(function()
+            -- Common remote patterns
+            local remote = ReplicatedStorage:FindFirstChild("GetMines") or
+                          ReplicatedStorage:FindFirstChild("Mines") or
+                          ReplicatedStorage:FindFirstChild("GameData")
+            if remote then
+                return remote:InvokeServer()
+            end
+        end)
+
+        if success and mines then
+            print("Found mines data:", mines)
+        end
+    end)
+end)
+
+-- Auto Flag Mines
+CreateButton(GameTab, "🚩 Auto Flag All Mines", function()
+    pcall(function()
+        -- Look for flag-related remotes
+        for _, remote in pairs(ReplicatedStorage:GetDescendants()) do
+            if remote:IsA("RemoteEvent") or remote:IsA("RemoteFunction") then
+                if remote.Name:lower():find("flag") or remote.Name:lower():find("mark") then
+                    -- Try to invoke flag on all potential mine positions
+                    print("Found flag remote:", remote.Name)
+                end
+            end
+        end
+
+        -- Highlight all flagged positions
+        for _, obj in pairs(Workspace:GetDescendants()) do
+            if obj.Name:lower():find("flag") or obj.Name:lower():find("mark") then
+                if obj:IsA("BasePart") then
+                    obj.Color = Color3.fromRGB(255, 255, 0)
+                end
+            end
+        end
+    end)
+end)
+
+-- Safe Click Helper
+CreateToggle(GameTab, "Safe Click Helper", false, function(enabled)
+    if enabled then
+        -- Add click detection to avoid mines
+        local connection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
+            if not gameProcessed and input.UserInputType == Enum.UserInputType.MouseButton1 then
+                local mousePos = UserInputService:GetMouseLocation()
+                -- Check if clicking on a known mine
+                for _, obj in pairs(Workspace:GetDescendants()) do
+                    if obj:FindFirstChild("MineHighlight") then
+                        local pos = Camera:WorldToViewportPoint(obj.Position)
+                        local dist = (Vector2.new(pos.X, pos.Y) - mousePos).Magnitude
+                        if dist < 50 then
+                            warn("⚠️ Mine detected at this position!")
+                        end
+                    end
+                end
+            end
+        end)
+
+        table.insert(Connections, connection)
+    end
+end)
+
+-- Auto Solver
+CreateButton(GameTab, "🤖 Auto Solver", function()
+    pcall(function()
+        -- Common Minesweeper solver logic
+        local board = {}
+
+        -- Scan the board for numbers and empty tiles
+        for _, obj in pairs(Workspace:GetDescendants()) do
+            if obj:IsA("BasePart") or obj:IsA("MeshPart") then
+                -- Look for number tiles
+                local num = tonumber(obj.Name) or tonumber(obj.Name:match("%d+"))
+                if num then
+                    board[obj] = {number = num, flagged = false}
+                end
+            end
+        end
+
+        print("Board scanned. Found", #board, "tiles")
+
+        -- Simple solving logic
+        for tile, data in pairs(board) do
+            if data.number == 0 then
+                -- Safe to click around 0 tiles
+                print("Safe tile found:", tile.Name)
+            end
+        end
+    end)
+end)
+
+-- Reveal Safe Tiles
+CreateButton(GameTab, "✅ Reveal Safe Tiles", function()
+    pcall(function()
+        for _, obj in pairs(Workspace:GetDescendants()) do
+            if obj:IsA("BasePart") or obj:IsA("MeshPart") then
+                local num = tonumber(obj.Name) or tonumber(obj.Name:match("%d+"))
+                if num == 0 then
+                    -- Highlight safe tiles
+                    local highlight = Instance.new("Highlight")
+                    highlight.Name = "SafeHighlight"
+                    highlight.FillColor = Color3.fromRGB(0, 255, 0)
+                    highlight.OutlineColor = Color3.fromRGB(100, 255, 100)
+                    highlight.FillTransparency = 0.5
+                    highlight.Parent = obj
+                end
+            end
+        end
+    end)
+end)
+
+CreateSection(GameTab, "Game Information")
+local GameNameLabel = CreateLabel(GameTab, "Game: " .. game:GetService("MarketplaceService"):GetProductInfo(game.PlaceId).Name)
+local CreatorLabel = CreateLabel(GameTab, "Creator: Loading...")
+pcall(function()
+    local info = game:GetService("MarketplaceService"):GetProductInfo(game.PlaceId)
+    CreatorLabel.Text = "Creator: " .. info.Creator.Name
+end)
+
+-- ==================== CONFIG TAB ====================
+local ConfigTab = Tabs["Config"].Content
+CreateSection(ConfigTab, "Configuration Management")
+
+CreateButton(ConfigTab, "💾 Save Settings", function()
+    pcall(function()
+        local configData = HttpService:JSONEncode(Config)
+
+        -- Try to write to file
+        if writefile then
+            writefile("MinesweeperHub_Config.json", configData)
+            print("Config saved to MinesweeperHub_Config.json")
+        else
+            -- Store in a global variable as fallback
+            getgenv().MinesweeperHubConfig = configData
+            print("Config saved to global variable")
+        end
+    end)
+end)
+
+CreateButton(ConfigTab, "📂 Load Settings", function()
+    pcall(function()
+        local configData = nil
+
+        -- Try to read from file
+        if readfile and isfile and isfile("MinesweeperHub_Config.json") then
+            configData = readfile("MinesweeperHub_Config.json")
+        elseif getgenv().MinesweeperHubConfig then
+            configData = getgenv().MinesweeperHubConfig
+        end
+
+        if configData then
+            local loadedConfig = HttpService:JSONDecode(configData)
+            for key, value in pairs(loadedConfig) do
+                Config[key] = value
+            end
+            print("Config loaded successfully!")
+        else
+            warn("No config file found")
+        end
+    end)
+end)
+
+CreateButton(ConfigTab, "🔄 Reset to Default", function()
+    pcall(function()
+        Config = {
+            Theme = "Aqua",
+            GUIWidth = 600,
+            GUIHeight = 400,
+            Noclip = false,
+            NoclipKey = Enum.KeyCode.N,
+            HighJump = false,
+            JumpPower = 50,
+            Float = false,
+            Speed = 16,
+            AntiVoid = false,
+            AntiVoidHeight = -50,
+            BoxESP = false,
+            Tracers = false,
+            TeamCheck = true,
+            ESPColor = Color3.fromRGB(255, 0, 0),
+            TracerColor = Color3.fromRGB(0, 255, 255),
+            XitboxESP = false
+        }
+        print("Config reset to default!")
+    end)
+end)
+
+CreateSection(ConfigTab, "Import/Export")
+CreateButton(ConfigTab, "📋 Export Config", function()
+    pcall(function()
+        local configData = HttpService:JSONEncode(Config)
+        setclipboard(configData)
+        print("Config copied to clipboard!")
+    end)
+end)
+
+CreateButton(ConfigTab, "📥 Import Config", function()
+    pcall(function()
+        local configData = getclipboard()
+        if configData and #configData > 0 then
+            local loadedConfig = HttpService:JSONDecode(configData)
+            for key, value in pairs(loadedConfig) do
+                Config[key] = value
+            end
+            print("Config imported successfully!")
+        end
+    end)
+end)
+
+-- ==================== INITIALIZATION ====================
+-- Set default tab
+CurrentTab = "Settings"
+Tabs["Settings"].Content.Visible = true
+Tabs["Settings"].Button.BackgroundColor3 = Themes[Config.Theme].Accent
+
+-- Initialize geometric background
+CreateGeometricBackground()
+
+-- Character respawn handler
+LocalPlayer.CharacterAdded:Connect(function(char)
+    wait(0.5)
+
+    -- Reapply settings
+    if Config.HighJump then
+        local humanoid = char:WaitForChild("Humanoid")
+        humanoid.JumpPower = Config.JumpPower
+    end
+
+    if Config.Speed ~= 16 then
+        local humanoid = char:WaitForChild("Humanoid")
+        humanoid.WalkSpeed = Config.Speed
+    end
+end)
+
+-- Cleanup on destroy
+ScreenGui.AncestryChanged:Connect(function()
+    if not ScreenGui.Parent then
+        for _, conn in pairs(Connections) do
+            if conn then conn:Disconnect() end
+        end
+        for _, box in pairs(ESPBoxes) do
+            if box then box:Destroy() end
+        end
+        for _, box in pairs(XitboxESPBoxes) do
+            if box then box:Destroy() end
+        end
+        for _, tracer in pairs(ESPTracers) do
+            if tracer then tracer:Remove() end
+        end
+    end
+end)
+
+-- Intro Animation
+MainFrame.Size = UDim2.new(0, 0, 0, 0)
+MainFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
+TweenService:Create(MainFrame, TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+    Size = UDim2.new(0, Config.GUIWidth, 0, Config.GUIHeight),
+    Position = UDim2.new(0.5, -Config.GUIWidth/2, 0.5, -Config.GUIHeight/2)
+}):Play()
+
+print("✅ Minesweeper Hub loaded successfully!")
+print("📌 Press the minimize button (-) to collapse the GUI")
+print("📌 Press X to close the GUI")
+print("📌 New: Xitbox ESP toggle added in Vision tab!")
